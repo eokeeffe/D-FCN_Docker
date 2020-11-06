@@ -1,0 +1,79 @@
+############################################################
+# Dockerfile to build POINTNET container images
+# Based on Ubuntu 14.04
+############################################################
+# Download base image ubuntu 14.04
+FROM ubuntu:16.04
+
+# LABEL about the custom image
+LABEL maintainer="evanok@nyu.edu"
+LABEL version="1.0"
+LABEL description="pointnet library"
+
+# Disable Prompt During Packages Installation
+ARG DEBIAN_FRONTEND=noninteractive
+
+# Update ubuntu software repository
+RUN apt-get clean
+RUN apt update -y
+RUN apt upgrade -y
+
+# sets the clock for the update server
+RUN ln -fs /usr/share/zoneinfo/America/New_York /etc/localtime
+RUN apt-get install -y tzdata
+RUN dpkg-reconfigure --frontend noninteractive tzdata 
+
+#install base utilities
+RUN apt-get update -q \
+    && apt-get install -y --no-install-recommends \
+        build-essential \
+        g++ \
+        cmake \
+        ca-certificates \
+        curl \
+        git \
+        libbz2-dev \
+        libreadline-dev \
+        libsqlite3-dev \
+        libssl-dev \
+        zlib1g-dev \
+        libhdf5-dev \
+        wget \
+        python2.7 \
+        python2.7-dev \
+        python-pip \
+        python-tk \
+        libffi-dev \
+        libssl-dev
+
+
+RUN python2.7 -m pip install --upgrade pip
+RUN python2.7 -m pip install --upgrade setuptools
+RUN python2.7 -m pip install Mercurial virtualenv pyopenssl ndg-httpsclient pyasn1
+RUN python2.7 -m pip install numpy==1.16.6
+RUN python2.7 -m pip install cython  
+RUN python2.7 -m pip install h5py
+
+# download cuda 8.0
+RUN wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu1404/x86_64/cuda-repo-ubuntu1404_8.0.61-1_amd64.deb
+
+RUN dpkg -i cuda-repo-ubuntu1404_8.0.61-1_amd64.deb
+RUN apt-get update
+RUN apt-get install -y cuda
+
+# cudnn runtime library v5.1 for cuda8.0
+RUN wget https://developer.nvidia.com/compute/machine-learning/cudnn/secure/v5.1/prod_20161129/8.0/libcudnn5_5.1.10-1+cuda8.0_amd64-deb
+
+# cudnn dev library
+RUN wget https://developer.nvidia.com/compute/machine-learning/cudnn/secure/v5.1/prod_20161129/8.0/libcudnn5-dev_5.1.10-1+cuda8.0_amd64-deb
+
+RUN dpkg -i libcudnn5_5.1.10-1+cuda8.0_amd64-deb
+RUN dpkg -i libcudnn5-dev_5.1.10-1+cuda8.0_amd64-deb
+RUN apt-get update
+
+RUN python2.7 -m pip install tensorflow==1.0.1 scipy image matplotlib
+
+RUN git clone --recursive https://github.com/charlesq34/pointnet
+
+CMD ['python2.7', 'main.py']
+
