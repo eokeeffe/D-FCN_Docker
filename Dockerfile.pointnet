@@ -56,24 +56,32 @@ RUN python2.7 -m pip install h5py
 
 # download cuda 8.0
 RUN wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu1404/x86_64/cuda-repo-ubuntu1404_8.0.61-1_amd64.deb
+#COPY cuda-repo-ubuntu1404_8.0.61-1_amd64.deb \cuda-repo-ubuntu1404_8.0.61-1_amd64.deb
 
 RUN dpkg -i cuda-repo-ubuntu1404_8.0.61-1_amd64.deb
 RUN apt-get update
 RUN apt-get install -y cuda
 
 # cudnn runtime library v5.1 for cuda8.0
-RUN wget https://developer.nvidia.com/compute/machine-learning/cudnn/secure/v5.1/prod_20161129/8.0/libcudnn5_5.1.10-1+cuda8.0_amd64-deb
+#RUN wget https://developer.nvidia.com/compute/machine-learning/cudnn/secure/v5.1/prod_20161129/8.0/libcudnn5_5.1.10-1+cuda8.0_amd64-deb
+COPY libcudnn5_5.1.10-1+cuda8.0_amd64.deb \libcudnn5_5.1.10-1+cuda8.0_amd64.deb
 
 # cudnn dev library
-RUN wget https://developer.nvidia.com/compute/machine-learning/cudnn/secure/v5.1/prod_20161129/8.0/libcudnn5-dev_5.1.10-1+cuda8.0_amd64-deb
+#RUN wget https://developer.nvidia.com/compute/machine-learning/cudnn/secure/v5.1/prod_20161129/8.0/libcudnn5-dev_5.1.10-1+cuda8.0_amd64-deb
+COPY libcudnn5-dev_5.1.10-1+cuda8.0_amd64.deb \libcudnn5-dev_5.1.10-1+cuda8.0_amd64.deb
 
-RUN dpkg -i libcudnn5_5.1.10-1+cuda8.0_amd64-deb
-RUN dpkg -i libcudnn5-dev_5.1.10-1+cuda8.0_amd64-deb
+RUN dpkg -i libcudnn5_5.1.10-1+cuda8.0_amd64.deb
+RUN dpkg -i libcudnn5-dev_5.1.10-1+cuda8.0_amd64.deb
 RUN apt-get update
 
 RUN python2.7 -m pip install tensorflow==1.0.1 scipy image matplotlib
 
 RUN git clone --recursive https://github.com/charlesq34/pointnet
 
-CMD ['python2.7', 'main.py']
+COPY entrypoint.sh \entrypoint.sh
+
+ENV PYTHONPATH=$PYTHONPATH:/pointnet/
+
+CMD ["/bin/bash", "-ls"]
+ENTRYPOINT ["entrypoint.sh"]
 

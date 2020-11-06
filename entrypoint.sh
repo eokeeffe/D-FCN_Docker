@@ -11,7 +11,7 @@ case "$1" in
         set -- "$@"
     ;;
     *.py)
-        set -- python3 "$@"
+        set -- python2.7 "$@"
     ;;
     *)
         set -- "$@"
