@@ -78,10 +78,12 @@ RUN python2.7 -m pip install tensorflow==1.0.1 scipy image matplotlib
 
 RUN git clone --recursive https://github.com/charlesq34/pointnet
 
-COPY entrypoint.sh \entrypoint.sh
+COPY entrypoint.sh /entrypoint.sh
 
 ENV PYTHONPATH=$PYTHONPATH:/pointnet/
 
+RUN chmod a+x /entrypoint.sh
+
 CMD ["/bin/bash", "-ls"]
-ENTRYPOINT ["entrypoint.sh"]
+ENTRYPOINT ["/entrypoint.sh"]
 
