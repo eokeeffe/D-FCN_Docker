@@ -1,0 +1,183 @@
+############################################################
+# Dockerfile to build D-FCN container images
+# Based on Ubuntu 16.04
+############################################################
+# Download base image ubuntu 16.04
+FROM ubuntu:16.04
+
+# LABEL about the custom image
+LABEL maintainer="evanok@nyu.edu"
+LABEL version="1.0"
+LABEL description="D-FCN library"
+
+# Disable Prompt During Packages Installation
+ARG DEBIAN_FRONTEND=noninteractive
+
+# Update ubuntu software repository
+RUN apt-get clean
+RUN apt update -y
+RUN apt upgrade -y
+
+# sets the clock for the update server
+RUN ln -fs /usr/share/zoneinfo/America/New_York /etc/localtime
+RUN apt-get install -y tzdata
+RUN dpkg-reconfigure --frontend noninteractive tzdata 
+
+#install base utilities
+RUN apt-get update -q \
+    && apt-get install -y --no-install-recommends \
+        build-essential \
+        g++ \
+        cmake \
+        ca-certificates \
+        curl \
+        git \
+        libbz2-dev \
+        libreadline-dev \
+        libsqlite3-dev \
+        libssl-dev \
+        zlib1g-dev \
+        libhdf5-dev \
+        wget \
+        python3.5 \
+        python3.5-dev \
+        python3-pip \
+        python-tk \
+        libffi-dev \
+        libssl-dev \
+        sed
+
+#RUN apt-get install linux-headers-$(uname -r)
+
+
+RUN python3.5 -m pip install --upgrade pip
+RUN python3.5 -m pip install --upgrade setuptools
+RUN python3.5 -m pip install Mercurial virtualenv pyopenssl ndg-httpsclient pyasn1
+RUN python3.5 -m pip install numpy
+#==1.16.6
+RUN python3.5 -m pip install cython  
+RUN python3.5 -m pip install h5py
+
+# download cuda 8.0
+RUN wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu1404/x86_64/cuda-repo-ubuntu1404_8.0.61-1_amd64.deb
+#COPY cuda-repo-ubuntu1404_8.0.61-1_amd64.deb \cuda-repo-ubuntu1404_8.0.61-1_amd64.deb
+
+RUN dpkg -i cuda-repo-ubuntu1404_8.0.61-1_amd64.deb
+RUN apt-get update
+RUN apt-get install -y cuda
+
+# cudnn runtime library v5.1 for cuda8.0
+#RUN wget https://developer.nvidia.com/compute/machine-learning/cudnn/secure/v5.1/prod_20161129/8.0/libcudnn5_5.1.10-1+cuda8.0_amd64-deb
+COPY libcudnn5_5.1.10-1+cuda8.0_amd64.deb \libcudnn5_5.1.10-1+cuda8.0_amd64.deb
+
+# cudnn dev library
+#RUN wget https://developer.nvidia.com/compute/machine-learning/cudnn/secure/v5.1/prod_20161129/8.0/libcudnn5-dev_5.1.10-1+cuda8.0_amd64-deb
+COPY libcudnn5-dev_5.1.10-1+cuda8.0_amd64.deb \libcudnn5-dev_5.1.10-1+cuda8.0_amd64.deb
+
+ENV PATH=$PATH:/usr/local/cuda/bin
+ENV LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/cuda/lib64
+
+RUN dpkg -i libcudnn5_5.1.10-1+cuda8.0_amd64.deb
+RUN dpkg -i libcudnn5-dev_5.1.10-1+cuda8.0_amd64.deb
+RUN apt-get update
+
+RUN python3.5 -m pip install tensorflow==1.4.1 scipy image matplotlib
+
+ENV TF_INC=/usr/local/lib/python3.5/dist-packages/tensorflow/include
+ENV TF_LIB=/usr/local/lib/python3.5/dist-packages/tensorflow
+ENV LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib/python3.5/dist-packages/tensorflow
+
+#checkout git repo and then checkout this particular hash, to avoid any changes 
+RUN git clone --recursive  https://github.com/eokeeffe/D-FCN.git && cd D-FCN && git checkout 5714e1a475344d1ee80fd61c6cfe5122c424b7b2 && cd /
+
+# change this number to allow the rest of the script to compile again
+RUN echo 1324545465749689
+
+# recompilation is required to fix the issue with cuda-8.0 being used versus cuda 10
+
+##### DFCN_op
+RUN sed -i 's/python/python3.5/g'  /D-FCN/tf_utils/tf_ops/DFCN_op/tf_compile.sh 
+RUN sed -i 's/cuda-8.0/cuda/g'  /D-FCN/tf_utils/tf_ops/DFCN_op/tf_compile.sh
+RUN rm /D-FCN/tf_utils/tf_ops/DFCN_op/tf_DFCN_so.so
+RUN chmod a+x /D-FCN/tf_utils/tf_ops/DFCN_op/tf_compile.sh && cd /D-FCN/tf_utils/tf_ops/DFCN_op/ && bash tf_compile.sh && cd /
+
+##### grouping
+RUN sed -i 's/python/python3.5/g'  /D-FCN/tf_utils/tf_ops/grouping/tf_grouping_compile.sh 
+RUN sed -i 's/cuda-8.0/cuda/g'  /D-FCN/tf_utils/tf_ops/grouping/tf_grouping_compile.sh
+RUN rm /D-FCN/tf_utils/tf_ops/grouping/tf_grouping_so.so
+RUN chmod a+x /D-FCN/tf_utils/tf_ops/grouping/tf_grouping_compile.sh && cd /D-FCN/tf_utils/tf_ops/grouping/ && bash tf_grouping_compile.sh && cd /
+
+##### interpolation
+RUN sed -i 's/python/python3.5/g'  /D-FCN/tf_utils/tf_ops/interpolation/tf_interpolate_compile.sh 
+RUN sed -i 's/cuda-8.0/cuda/g'  /D-FCN/tf_utils/tf_ops/interpolation/tf_interpolate_compile.sh
+RUN rm /D-FCN/tf_utils/tf_ops/interpolation/tf_interpolate_so.so 
+RUN chmod a+x /D-FCN/tf_utils/tf_ops/interpolation/tf_interpolate_compile.sh && cd /D-FCN/tf_utils/tf_ops/interpolation/ && bash tf_interpolate_compile.sh && cd /
+
+##### pointSIFT_op
+RUN sed -i 's/python/python3.5/g'  /D-FCN/tf_utils/tf_ops/pointSIFT_op/tf_pointSIFT_compile.sh 
+RUN sed -i 's/cuda-8.0/cuda/g'  /D-FCN/tf_utils/tf_ops/pointSIFT_op/tf_pointSIFT_compile.sh
+RUN rm /D-FCN/tf_utils/tf_ops/pointSIFT_op/tf_pointSIFT_so.so
+RUN chmod a+x /D-FCN/tf_utils/tf_ops/pointSIFT_op/tf_pointSIFT_compile.sh && cd /D-FCN/tf_utils/tf_ops/pointSIFT_op/ && bash tf_pointSIFT_compile.sh && cd /
+
+##### pointnet2_ops/3d_interpolation
+#RUN sed -i 's/python2.7/python3.5/g'  /D-FCN/tf_utils/tf_ops/pointnet2_ops/3d_interpolation/tf_interpolate_compile.sh
+RUN sed -i 's/cuda-8.0/cuda/g'  /D-FCN/tf_utils/tf_ops/pointnet2_ops/3d_interpolation/tf_interpolate_compile.sh
+RUN sed -i 's|home/mmvc/anaconda2/envs/Xiang_Li/lib/python2.7/site-packages/tensorflow/include|usr/local/lib/python3.5/dist-packages/tensorflow/include|g'  /D-FCN/tf_utils/tf_ops/pointnet2_ops/3d_interpolation/tf_interpolate_compile.sh
+RUN sed -i 's|home/mmvc/anaconda2/envs/Xiang_Li/lib/python2.7/site-packages/tensorflow|usr/local/lib/python3.5/dist-packages/tensorflow|g' /D-FCN/tf_utils/tf_ops/pointnet2_ops/3d_interpolation/tf_interpolate_compile.sh
+RUN sed -i 's|$TF_INC|/usr/local/lib/python3.5/dist-packages/tensorflow/include|g' /D-FCN/tf_utils/tf_ops/pointnet2_ops/3d_interpolation/tf_interpolate_compile.sh
+RUN sed -i 's|$TF_LIB|/usr/local/lib/python3.5/dist-packages/tensorflow|g' /D-FCN/tf_utils/tf_ops/pointnet2_ops/3d_interpolation/tf_interpolate_compile.sh
+RUN sed -i 's|$(python|$(python3.5|g'  /D-FCN/tf_utils/tf_ops/pointnet2_ops/3d_interpolation/tf_interpolate_compile.sh
+
+RUN rm /D-FCN/tf_utils/tf_ops/pointnet2_ops/3d_interpolation/tf_interpolate_so.so 
+RUN chmod a+x /D-FCN/tf_utils/tf_ops/pointnet2_ops/3d_interpolation/tf_interpolate_compile.sh && cd /D-FCN/tf_utils/tf_ops/pointnet2_ops/3d_interpolation/ && bash tf_interpolate_compile.sh && cd /
+
+##### pointnet2_ops/grouping
+RUN sed -i 's/cuda-8.0/cuda/g'  /D-FCN/tf_utils/tf_ops/pointnet2_ops/grouping/tf_grouping_compile.sh
+RUN sed -i 's|home/mmvc/anaconda2/envs/Xiang_Li/lib/python2.7/site-packages/tensorflow/include|usr/local/lib/python3.5/dist-packages/tensorflow/include|g'  /D-FCN/tf_utils/tf_ops/pointnet2_ops/grouping/tf_grouping_compile.sh
+RUN sed -i 's|home/mmvc/anaconda2/envs/Xiang_Li/lib/python2.7/site-packages/tensorflow|usr/local/lib/python3.5/dist-packages/tensorflow|g' /D-FCN/tf_utils/tf_ops/pointnet2_ops/grouping/tf_grouping_compile.sh
+RUN sed -i 's|$TF_INC|/usr/local/lib/python3.5/dist-packages/tensorflow/include|g' /D-FCN/tf_utils/tf_ops/pointnet2_ops/grouping/tf_grouping_compile.sh
+RUN sed -i 's|$TF_LIB|/usr/local/lib/python3.5/dist-packages/tensorflow|g' /D-FCN/tf_utils/tf_ops/pointnet2_ops/grouping/tf_grouping_compile.sh
+RUN sed -i 's|$(python|$(python3.5|g' /D-FCN/tf_utils/tf_ops/pointnet2_ops/grouping/tf_grouping_compile.sh
+RUN rm /D-FCN/tf_utils/tf_ops/pointnet2_ops/grouping/tf_grouping_so.so
+RUN chmod a+x /D-FCN/tf_utils/tf_ops/pointnet2_ops/grouping/tf_grouping_compile.sh && cd /D-FCN/tf_utils/tf_ops/pointnet2_ops/grouping/ && bash tf_grouping_compile.sh && cd /
+
+##### pointnet2_ops/sampling
+RUN sed -i 's/cuda-8.0/cuda/g'  /D-FCN/tf_utils/tf_ops/pointnet2_ops/sampling/tf_sampling_compile.sh
+RUN sed -i 's|home/mmvc/anaconda2/envs/Xiang_Li/lib/python2.7/site-packages/tensorflow/include|usr/local/lib/python3.5/dist-packages/tensorflow/include|g'  /D-FCN/tf_utils/tf_ops/pointnet2_ops/sampling/tf_sampling_compile.sh
+RUN sed -i 's|home/mmvc/anaconda2/envs/Xiang_Li/lib/python2.7/site-packages/tensorflow|usr/local/lib/python3.5/dist-packages/tensorflow|g' /D-FCN/tf_utils/tf_ops/pointnet2_ops/sampling/tf_sampling_compile.sh
+RUN sed -i 's|$TF_INC|/usr/local/lib/python3.5/dist-packages/tensorflow/include|g' /D-FCN/tf_utils/tf_ops/pointnet2_ops/sampling/tf_sampling_compile.sh
+RUN sed -i 's|$TF_LIB|/usr/local/lib/python3.5/dist-packages/tensorflow|g' /D-FCN/tf_utils/tf_ops/pointnet2_ops/sampling/tf_sampling_compile.sh
+RUN sed -i 's|$(python|$(python3.5|g' /D-FCN/tf_utils/tf_ops/pointnet2_ops/sampling/tf_sampling_compile.sh
+RUN rm /D-FCN/tf_utils/tf_ops/pointnet2_ops/sampling/tf_sampling_so.so
+RUN chmod a+x /D-FCN/tf_utils/tf_ops/pointnet2_ops/sampling/tf_sampling_compile.sh && cd /D-FCN/tf_utils/tf_ops/pointnet2_ops/sampling/ && bash tf_sampling_compile.sh && cd /
+
+##### sampling
+RUN sed -i 's/python/python3.5/g' /D-FCN/tf_utils/tf_ops/sampling/tf_sampling_compile.sh
+RUN sed -i 's/cuda-8.0/cuda/g' /D-FCN/tf_utils/tf_ops/sampling/tf_sampling_compile.sh
+RUN rm /D-FCN/tf_utils/tf_ops/sampling/tf_sampling_so.so
+RUN chmod a+x /D-FCN/tf_utils/tf_ops/sampling/tf_sampling_compile.sh && cd /D-FCN/tf_utils/tf_ops/sampling/ && bash tf_sampling_compile.sh && cd /
+
+RUN sed -i 's|models/DFCN_pointnet2.py|/D-FCN/models/DFCN_pointnet2.py|g' /D-FCN/train_eval.py
+RUN sed -i 's|tf_utils/DFCN_util_xy2.py|/D-FCN/tf_utils/DFCN_util_xy2.py|g' /D-FCN/train_eval.py
+RUN sed -i 's|# train_f|train_f|g' /D-FCN/train_eval.py
+RUN sed -i 's|./Data/train_merge_min_norm_fea.pickle|/D-FCN/Data/train_merge_min_norm_fea.pickle|g' /D-FCN/train_eval.py
+
+COPY entrypoint.sh /entrypoint.sh
+
+ENV PYTHONPATH=$PYTHONPATH:/D-FCN/
+ENV PYTHONPATH=$PYTHONPATH:/D-FCN/Data/
+ENV PYTHONPATH=$PYTHONPATH:/D-FCN/models/
+ENV PYTHONPATH=$PYTHONPATH:/D-FCN/tf_utils/
+ENV PYTHONPATH=$PYTHONPATH:/D-FCN/tf_utils/tf_ops/DFCN_op/
+ENV PYTHONPATH=$PYTHONPATH:/D-FCN/tf_utils/tf_ops/grouping/
+ENV PYTHONPATH=$PYTHONPATH:/D-FCN/tf_utils/tf_ops/interpolation/
+ENV PYTHONPATH=$PYTHONPATH:/D-FCN/tf_utils/tf_ops/pointSIFT_op/
+ENV PYTHONPATH=$PYTHONPATH:/D-FCN/tf_utils/tf_ops/pointnet2_ops/
+ENV PYTHONPATH=$PYTHONPATH:/D-FCN/tf_utils/tf_ops/sampling/
+ENV PYTHONPATH=$PYTHONPATH:/D-FCN/tf_utils/tf_ops/
+
+RUN chmod a+x /entrypoint.sh
+
+CMD ["/bin/bash", "-ls"]
+ENTRYPOINT ["/entrypoint.sh"]
+
