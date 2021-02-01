@@ -50,7 +50,7 @@ RUN apt-get update -q \
 #RUN apt-get install linux-headers-$(uname -r)
 
 
-RUN python3.5 -m pip install --upgrade pip
+RUN python3.5 -m pip install --upgrade pip < 21.0
 RUN python3.5 -m pip install --upgrade setuptools
 RUN python3.5 -m pip install Mercurial virtualenv pyopenssl ndg-httpsclient pyasn1
 RUN python3.5 -m pip install numpy
